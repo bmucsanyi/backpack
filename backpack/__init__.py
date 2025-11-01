@@ -12,6 +12,7 @@ from backpack import extensions
 from backpack.context import CTX
 from backpack.custom_module.graph_utils import convert_module_to_backpack
 from backpack.extensions.backprop_extension import BackpropExtension
+from backpack.utils.hooks import no_op
 from backpack.utils.module_classification import is_no_op
 
 
