@@ -1,5 +1,6 @@
 """BackPACK."""
 
+import warnings
 from inspect import isclass
 from types import TracebackType
 from typing import Callable, Optional, Tuple, Type, Union
@@ -14,6 +15,12 @@ from backpack.custom_module.graph_utils import convert_module_to_backpack
 from backpack.extensions.backprop_extension import BackpropExtension
 from backpack.utils.hooks import no_op
 from backpack.utils.module_classification import is_no_op
+
+warnings.filterwarnings(
+    "ignore",
+    message=r"Full backward hook is firing when gradients are computed with respect.*",
+    category=UserWarning,
+)
 
 
 class backpack:
