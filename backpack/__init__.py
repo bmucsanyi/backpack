@@ -169,26 +169,22 @@ def hook_store_io(
         for i in range(len(input)):
             setattr(module, "input{}".format(i), input[i])
         if isinstance(output, tuple):
-            # is true for RNN,GRU,LSTM which return tuple (output, ...)
             module.output = output[0]
             output_tensor = output[0]
         else:
             module.output = output
             output_tensor = output
 
-        # Register backward hook on output tensor if extensions are active
-        if CTX.get_active_exts() and output_tensor.requires_grad:
-
-            def make_tensor_hook(mod):
-                def tensor_hook(grad):
-                    # Determine g_inp based on input tensors
-                    g_inp = tuple(None for _ in input)
-                    hook_run_extensions(mod, g_inp, (grad,))
-                    return grad
-
+        if output_tensor.requires_grad:
+            def make_tensor_hook(mod, inp_tuple):
+                def tensor_hook(grad_output):
+                    if CTX.get_active_exts():
+                        g_inp = tuple(None for _ in inp_tuple)
+                        hook_run_extensions(mod, g_inp, (grad_output,))
+                    return grad_output
                 return tensor_hook
 
-            output_tensor.register_hook(make_tensor_hook(module))
+            output_tensor.register_hook(make_tensor_hook(module, input))
 
 
 def memory_cleanup(module: Module) -> None:
