@@ -1,6 +1,5 @@
 """BackPACK."""
 
-import warnings
 from inspect import isclass
 from types import TracebackType
 from typing import Callable, Optional, Tuple, Type, Union
@@ -13,14 +12,7 @@ from backpack import extensions
 from backpack.context import CTX
 from backpack.custom_module.graph_utils import convert_module_to_backpack
 from backpack.extensions.backprop_extension import BackpropExtension
-from backpack.utils.hooks import no_op
 from backpack.utils.module_classification import is_no_op
-
-warnings.filterwarnings(
-    "ignore",
-    message=r"Full backward hook is firing when gradients are computed with respect.*",
-    category=UserWarning,
-)
 
 
 class backpack:
@@ -178,8 +170,24 @@ def hook_store_io(
         if isinstance(output, tuple):
             # is true for RNN,GRU,LSTM which return tuple (output, ...)
             module.output = output[0]
+            output_tensor = output[0]
         else:
             module.output = output
+            output_tensor = output
+
+        # Register backward hook on output tensor if extensions are active
+        if CTX.get_active_exts() and output_tensor.requires_grad:
+
+            def make_tensor_hook(mod):
+                def tensor_hook(grad):
+                    # Determine g_inp based on input tensors
+                    g_inp = tuple(None for _ in input)
+                    hook_run_extensions(mod, g_inp, (grad,))
+                    return grad
+
+                return tensor_hook
+
+            output_tensor.register_hook(make_tensor_hook(module))
 
 
 def memory_cleanup(module: Module) -> None:
@@ -269,10 +277,9 @@ def extend(module: Module, debug: bool = False, use_converter: bool = False) -> 
 
 
 def _register_hooks(module: Module) -> None:
-    """Install forward and backward hooks on a module.
+    """Install forward hook on a module.
 
     Args:
           module: module that is going to be extended
     """
     CTX.add_hook_handle(module.register_forward_hook(hook_store_io))
-    CTX.add_hook_handle(module.register_full_backward_hook(hook_run_extensions))
